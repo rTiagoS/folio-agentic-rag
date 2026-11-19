@@ -1,0 +1,10 @@
+-c requirements.lock
+gradio
+langchain
+langchain-core
+langchain-google-genai
+langchain-text-splitters
+langgraph
+langsmith
+numpy
+pypdf

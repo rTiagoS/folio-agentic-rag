@@ -1,0 +1,10 @@
+*
+!app.py
+!core/
+!core/**
+!tests/
+!tests/**
+!requirements.txt
+!requirements.lock
+!requirements-dev.txt
+!pyproject.toml
