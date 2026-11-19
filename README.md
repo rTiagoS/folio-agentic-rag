@@ -1,7 +1,7 @@
 # NewPage
 
-Ask questions about uploaded PDFs and text files. A Gemini agent chooses when
-and where to search, and shows the passages used to support its answer.
+Chat with Gemini and attach PDFs or text files whenever you need document context.
+The agent chooses when and where to search and shows the supporting passages.
 
 ## Run locally
 
@@ -14,8 +14,10 @@ docker build --pull -t newpage:local .
 docker run --rm --env-file .env -p 127.0.0.1:7860:7860 newpage:local
 ```
 
-Open **http://localhost:7860**, attach PDF/TXT files, select **Add to conversation**,
-and ask a question. Expand **Retrieved passages** to inspect the evidence.
+Open **http://localhost:7860** and start chatting. Use the paperclip in the message
+box to attach PDF/TXT files, with or without a question. Files are indexed when
+you send the message. Expand **Sources** to inspect the latest retrieved evidence.
+**New chat** clears the conversation, its documents, and its agent memory.
 Gemini receives extracted text and questions; indexing and chat incur API usage.
 
 ## Design
@@ -32,7 +34,8 @@ flowchart LR
     Agent --> UI
 ```
 
-The UI calls functions in `core/engine.py`. `documents.py` owns ingestion and
+The UI uses Gradio's native `Chatbot` and `MultimodalTextbox` and calls
+functions in `core/engine.py`. `documents.py` owns ingestion and
 retrieval; `agent.py` owns prompts, model configuration, and the tool loop.
 No separate backend service, authentication, or database is required.
 

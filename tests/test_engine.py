@@ -43,8 +43,31 @@ def test_session_memory_isolated_from_other_sessions(session, text_file, clients
 def test_empty_session_cannot_access_other_documents(session, text_file, clients):
     attach_documents(session, [text_file])
     other = create_session(*clients)
-    with pytest.raises(ValueError, match="Attach"):
-        answer_message(other, "Show the refund policy")
+    result = answer_message(other, "Show the refund policy")
+    assert result["sources"] == []
+    assert "14 days" not in result["text"]
+    assert "No documents attached" in result["text"]
+    assert clients[1].query_calls == 0
+
+
+def test_first_message_initializes_agent_without_documents(monkeypatch, clients):
+    monkeypatch.setattr("core.engine.create_clients", lambda: clients)
+    session = create_session()
+    result = answer_message(session, "Hello")
+    assert "Hello!" in result["text"]
+    assert result["sources"] == []
+    assert session.turns == 1
+    assert session.documents == []
+    assert clients[1].document_calls == clients[1].query_calls == 0
+
+
+def test_later_upload_preserves_the_conversation(session, text_file):
+    answer_message(session, "Hello")
+    agent = session.agent
+    attach_documents(session, [text_file])
+    assert session.agent is agent
+    assert "Hello" in answer_message(session, "What was my previous question?")["text"]
+    assert "14 days" in answer_message(session, "What are the refund terms?")["text"]
 
 
 def test_tool_rejects_ids_outside_current_session(session, text_file, clients):

@@ -1,8 +1,9 @@
-"""Gradio components and event adapters. All document and agent work lives in core."""
+"""Native Gradio chat and event adapters; document and agent work stays in core."""
 
 import html
 import logging
 import os
+from collections.abc import Iterator
 
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 os.environ.setdefault("LANGSMITH_TRACING", "false")
@@ -19,147 +20,136 @@ from core.engine import (  # noqa: E402
     create_session,
 )
 
+logger = logging.getLogger(__name__)
+
 CSS = """
-.gradio-container {max-width: 1240px !important; margin: auto;}
-#masthead {padding: 26px 4px 20px; border-bottom: 1px solid var(--border-color-primary);}
-#masthead h1 {font-size: clamp(28px, 4vw, 42px); letter-spacing: -1.5px; margin: 4px 0 10px;}
-#masthead .eyebrow {font-size: 12px; font-weight: 700; letter-spacing: 2px; color: #27827a;}
-#masthead p {color: var(--body-text-color-subdued); max-width: 650px;}
-#workspace {padding-top: 20px; gap: 24px;}
-#library {padding: 18px; border-radius: 16px; background: var(--block-background-fill);}
-#library h2 {font-size: 18px;}
-#conversation {border-radius: 16px;}
-#footnote {text-align: center; font-size: 12px;
-color: var(--body-text-color-subdued); padding: 14px;}
+.gradio-container {width: 100% !important; max-width: 1040px !important; margin: auto;}
+#header {align-items: center; padding: 22px 0 14px;}
+#brand h1 {font-size: 24px; letter-spacing: -0.7px; margin: 0;}
+#brand p {color: var(--body-text-color-subdued); margin-top: 4px;}
+#new-chat {max-width: 120px; align-self: center;}
+#conversation {border: 0; background: transparent;}
+/* History changes must also clear the agent checkpoints through New chat. */
+#conversation button {display: none;}
+#composer {border-radius: 18px;}
+#session-note {text-align: center; font-size: 12px; color: var(--body-text-color-subdued);}
 """
 
-
-def index_files(paths: list[str] | None, session: Session):
-    try:
-        documents = attach_documents(session, paths or [])
-    except (ValueError, RuntimeError) as exc:
-        raise gr.Error(str(exc)) from None
-    library = "\n\n".join(
-        f"**{number}. {html.escape(doc['name'])}** · Ready"
-        for number, doc in enumerate(documents, 1)
-    )
-    return library, f"{len(documents)} document(s) ready. Ask a question to get started.", None
+# Reset the browser picker too; selecting the same file must emit another change.
+RESET_FILE_PICKER_JS = """(...args) => {
+    document.querySelectorAll('#composer input[type=file]').forEach(input => {
+        input.value = '';
+    });
+    return args;
+}"""
 
 
-def send_message(question: str, history: list[dict] | None, session: Session):
-    try:
-        result = answer_message(session, question)
-    except (ValueError, RuntimeError) as exc:
-        raise gr.Error(str(exc)) from None
+def respond(message: dict, history: list[dict], session: Session | None) -> Iterator[tuple]:
+    """Adapt native text/files input. LangChain checkpoints own the model's history."""
+    session = session or create_session()
+    text = message.get("text", "").strip()
+    paths = message.get("files", [])
     messages = list(history or [])
-    messages.extend(
-        [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": result["text"]},
-        ]
+    content = [{"path": path} for path in paths]
+    if text:
+        content.append(text)
+    if content:
+        messages.append({"role": "user", "content": content})
+    yield (
+        messages,
+        gr.update(value=None, interactive=False),
+        session,
+        "",
+        gr.update(interactive=False),
     )
-    sources = "\n\n---\n\n".join(
-        f"**[{source['source_id']}] {html.escape(source['name'])}**"
-        + (f" · Page {source['page']}" if source["page"] else " · Text file")
-        + f"\n\n{html.escape(source['text'])}"
-        for source in result["sources"]
-    )
-    return messages, "", sources or "No passages retrieved for this response."
+    sources = ""
+    progress = gr.Progress()
+    try:
+        if paths:
+            progress(0, desc="Preparing your documents")
+            attach_documents(session, paths)
+        if text:
+            progress(0.5, desc="Thinking")
+            result = answer_message(session, text)
+            response = result["text"]
+            sources = "\n\n---\n\n".join(
+                f"**[{source['source_id']}] {html.escape(source['name'])}**"
+                + (f" · Page {source['page']}" if source["page"] else " · Text file")
+                + f"\n\n{html.escape(source['text'])}"
+                for source in result["sources"]
+            )
+        elif paths:
+            response = (
+                f"Added {len(paths)} document(s) to this chat. "
+                "What would you like to know about them?"
+            )
+        else:
+            response = "Send a message or attach a PDF or TXT to get started."
+    except (ValueError, RuntimeError) as exc:
+        response = str(exc)
+    except Exception as exc:
+        logger.error("chat_failed session_id=%s error_type=%s", session.id, type(exc).__name__)
+        response = "Something went wrong. Please try again or start a new chat."
+    messages.append({"role": "assistant", "content": response})
+    yield messages, gr.update(interactive=True), session, sources, gr.update(interactive=True)
+
+
+def reset_session(session: Session | None) -> tuple:
+    close_session(session)
+    return [], None, None, ""
 
 
 def build_app() -> gr.Blocks:
-    with gr.Blocks(title="NewPage · Chat with your documents", delete_cache=(300, 3600)) as demo:
+    with gr.Blocks(title="NewPage · Chat", delete_cache=(300, 3600)) as demo:
         session = gr.State(None, time_to_live=3600, delete_callback=close_session)
-        gr.HTML("""<header id="masthead">
-          <div class="eyebrow">NEWPAGE / DOCUMENT WORKSPACE</div>
-          <h1>Your documents. A clearer answer.</h1>
-          <p>Bring your PDFs and notes. Ask questions, connect ideas, and inspect
-          the passages behind each answer.</p>
-        </header>""")
-        with gr.Row(elem_id="workspace"):
-            with gr.Column(scale=1, min_width=280, elem_id="library"):
-                gr.Markdown("## Your library\nAdd documents to this conversation.")
-                files = gr.File(
-                    label="Attach PDF or TXT",
-                    file_count="multiple",
-                    file_types=[".pdf", ".txt"],
-                    type="filepath",
-                )
-                index_button = gr.Button(
-                    "Add to conversation", variant="primary", interactive=False
-                )
-                status = gr.Markdown("Choose your files, then add them to the conversation.")
-                library = gr.Markdown("*Your documents will appear here.*")
-                reset = gr.Button("New session", variant="secondary", interactive=False)
-                gr.Markdown(
-                    "Files and chat are temporary. Refreshing this page starts a new session."
-                )
-            with gr.Column(scale=3, min_width=320):
-                chat = gr.Chatbot(
-                    label="Conversation",
-                    height=470,
-                    elem_id="conversation",
-                    placeholder="<strong>What would you like to understand?</strong><br>"
-                    "Add a document, then ask about its key ideas or compare your files.",
-                    buttons=["copy"],
-                )
-                with gr.Row():
-                    question = gr.Textbox(
-                        placeholder="Ask a question about your documents…",
-                        label="Your question",
-                        show_label=False,
-                        scale=8,
-                        max_lines=4,
-                    )
-                    send = gr.Button("Ask →", variant="primary", scale=1, interactive=False)
-                with gr.Accordion("Retrieved passages · latest answer", open=False):
-                    sources = gr.Markdown("Supporting passages will appear here after a search.")
-        gr.Markdown(
-            "Grounded in your files. Verify important claims against the sources.",
-            elem_id="footnote",
-        )
-
-        def initialize():
-            return create_session(), *(gr.update(interactive=True) for _ in range(3))
-
-        def reset_session(current: Session):
-            close_session(current)
-            return (
-                create_session(),
-                [],
-                "",
-                None,
-                "*Your documents will appear here.*",
-                "New session ready. Add a document to begin.",
-                "Supporting passages will appear here after a search.",
+        with gr.Row(elem_id="header"):
+            gr.Markdown("# NewPage\nA conversation with more context.", elem_id="brand")
+            new_chat = gr.Button(
+                "New chat", variant="secondary", scale=0, min_width=112, elem_id="new-chat"
             )
-
-        demo.load(
-            initialize, outputs=[session, index_button, send, reset], api_visibility="private"
+        chat = gr.Chatbot(
+            height="min(62vh, 620px)",
+            show_label=False,
+            container=False,
+            buttons=[],
+            feedback_options=[],
+            placeholder="<strong>How can I help?</strong><br>"
+            "Start a conversation. Attach a PDF or TXT whenever you need it.",
+            elem_id="conversation",
         )
-        index_button.click(
-            index_files,
-            [files, session],
-            [library, status, files],
+        composer = gr.MultimodalTextbox(
+            sources=["upload"],
+            file_types=[".pdf", ".txt"],
+            file_count="multiple",
+            placeholder="Message NewPage or attach a document…",
+            show_label=False,
+            max_plain_text_length=4000,
+            stop_btn=False,
+            elem_id="composer",
+        )
+        with gr.Accordion("Sources · latest answer", open=False):
+            sources = gr.Markdown("")
+        gr.Markdown(
+            "PDF & TXT · Temporary chat · Refreshing starts fresh",
+            elem_id="session-note",
+        )
+        composer.submit(
+            respond,
+            inputs=[composer, chat, session],
+            outputs=[chat, composer, session, sources, new_chat],
             concurrency_limit=1,
-            concurrency_id="workspace",
+            concurrency_id="chat",
+            show_progress="minimal",
+            js=RESET_FILE_PICKER_JS,
             api_visibility="private",
         )
-        gr.on(
-            triggers=[question.submit, send.click],
-            fn=send_message,
-            inputs=[question, chat, session],
-            outputs=[chat, question, sources],
-            concurrency_limit=1,
-            concurrency_id="workspace",
-            api_visibility="private",
-        )
-        reset.click(
+        new_chat.click(
             reset_session,
-            [session],
-            [session, chat, question, files, library, status, sources],
+            inputs=[session],
+            outputs=[chat, composer, session, sources],
             concurrency_limit=1,
-            concurrency_id="workspace",
+            concurrency_id="chat",
+            js=RESET_FILE_PICKER_JS,
             api_visibility="private",
         )
     return demo
@@ -177,6 +167,9 @@ if __name__ == "__main__":
         footer_links=[],
         css=CSS,
         theme=gr.themes.Soft(
-            primary_hue="teal", neutral_hue="slate", font=["Inter", "system-ui", "sans-serif"]
+            primary_hue="slate",
+            neutral_hue="slate",
+            font=["Inter", "system-ui", "sans-serif"],
+            font_mono=["ui-monospace", "monospace"],
         ),
     )

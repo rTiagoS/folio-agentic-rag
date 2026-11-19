@@ -59,7 +59,9 @@ class ToolCallingModel(BaseChatModel):
             raise RuntimeError("Synthetic provider error: sensitive content must not be logged")
         humans = [message for message in messages if isinstance(message, HumanMessage)]
         question = humans[-1].content.split("Question: ")[-1]
-        if "previous question" in question.lower():
+        if question.lower() in {"hello", "hi"}:
+            response = AIMessage(content="Hello! How can I help?")
+        elif "previous question" in question.lower():
             response = AIMessage(
                 content=humans[-2].content if len(humans) > 1 else "No previous question"
             )

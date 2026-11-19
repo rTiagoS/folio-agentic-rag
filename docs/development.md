@@ -84,3 +84,26 @@ Offline tests do not establish Gemini's live answer quality or prompt robustness
   have a fix listed. These are unresolved, not accepted deployment exceptions.
   Full scan evidence and the analyzed image ID are retained outside the repository.
 - No live Gemini calls, LangSmith exports, cloud deployments, or commits were made.
+
+## 2026-11-19 — Native conversational interface
+
+- Allow general conversation before any upload. Initialize the agent on the first
+  message and keep its checkpoints when documents are added later.
+- Compose Gradio's native Chatbot and MultimodalTextbox for text and attachments
+  in one composer. ChatInterface was considered; explicit events avoid keeping
+  its extra history-edit flows synchronized with LangChain checkpoints.
+  Sending a message indexes only its new files; a files-only
+  submission confirms ingestion without spending a chat-model call.
+- Keep New chat as the additional action and clear both Gradio history and core
+  state. Hide native history-edit controls because they would require matching
+  checkpoint edits; this is a UI choice, not an authorization control.
+- Preserve the prompt's ROLE/GOAL/INSTRUCTIONS/STYLE structure. General answers
+  are allowed; document claims still require retrieved evidence. An empty document
+  catalog produces a useful tool response without calling the embedding API.
+- No new dependencies. Offline checks cover general chat, later uploads, combined
+  text/files, file-only submissions, failed uploads, and clearing the conversation.
+- Verification: 26 offline tests, Ruff lint/format, and browser checks pass. Browser
+  coverage includes chat before uploads, sources, conversation memory, New chat,
+  selecting the same file again, tab isolation, refresh, and mobile overflow.
+- Live Gemini quality and LangSmith delivery remain separate checks; no real keys
+  or documents are used in the default tests.

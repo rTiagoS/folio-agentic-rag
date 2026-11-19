@@ -10,9 +10,10 @@ Agreed technologies:
 - Docker for local execution and application packaging.
 - LangSmith for model tracing in an explicitly configured environment.
 
-The first prototype runs locally and accepts multiple PDF or TXT documents per
-conversation. A single LangChain ReAct agent chooses when and which documents
-to search through one deterministic retrieval tool.
+The prototype runs locally, supports general conversation from the first message,
+and accepts multiple PDF or TXT documents at any point in a chat. A single
+LangChain ReAct agent chooses when and which documents to search through one
+deterministic retrieval tool.
 
 Use InMemoryVectorStore for passages and embeddings and InMemorySaver for agent
 state, isolated per browser session. Refresh starts a new session; process
@@ -51,6 +52,9 @@ deployment are future increments. Keep validation and execution bounds modest.
 
 ## UI and interaction
 
+- Use native Chatbot and MultimodalTextbox for messages and attachments.
+  Index attachments on submission. Keep New chat as the only additional action;
+  it must clear both visible history and the backend's session resources.
 - Use a small, consistent set of visual styles and reusable UI patterns.
 - Make upload status, active document, loading, and failures easy to understand.
 - Prioritize readable answers, clear source references, and accessible controls.

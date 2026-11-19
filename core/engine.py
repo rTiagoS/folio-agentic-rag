@@ -103,14 +103,15 @@ def answer_message(session: Session, question: str) -> dict:
     with session.lock:
         if session.closed:
             raise ValueError("This session has expired. Start a new session.")
-        if not session.documents:
-            raise ValueError("Attach and index a document before asking a question.")
         if not question.strip() or len(question) > 4000:
             raise ValueError("Ask a question of between 1 and 4,000 characters.")
         if session.turns >= MAX_TURNS:
             raise ValueError("This conversation reached 20 turns. Start a new session to continue.")
+        if session.agent is None:
+            _initialize(session, *create_clients())
         turn_id = uuid4().hex
         catalog = "\n".join(f"{doc['id']}: {doc['name']}" for doc in session.documents)
+        catalog = catalog or "No documents attached yet."
         config = {
             "configurable": {"thread_id": session.id},
             "metadata": {"thread_id": session.id, "turn_id": turn_id},
