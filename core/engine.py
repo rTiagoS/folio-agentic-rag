@@ -146,8 +146,8 @@ def answer_message(session: Session, question: str) -> dict:
                 type(exc).__name__,
             )
             raise RuntimeError(
-                "The model could not finish this answer. Conversation memory was reset; "
-                "your documents are still available. Try again or start a new session."
+                "Gemini could not finish this answer. Please try again. "
+                "Conversation memory was reset; your documents are still available."
             ) from exc
 
         sources = {}

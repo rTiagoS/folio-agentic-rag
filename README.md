@@ -1,85 +1,134 @@
-# NewPage
+# Folio
 
-Chat with Gemini and attach PDFs or text files whenever you need document context.
-The agent chooses when and where to search and shows the supporting passages.
+A local **agentic RAG** prototype for chatting with PDF and TXT documents.
+Built with Gradio and LangChain, it uses one Gemini agent to choose when and
+which documents to search.
+
+![Folio chat interface](docs/screenshot.png)
 
 ## Run locally
 
 Requires Docker and a [Gemini API key](https://aistudio.google.com/api-keys).
+Run from the repository root:
 
 ```bash
 cp .env.example .env
-# Set GOOGLE_API_KEY in .env. Never commit this file.
-docker build --pull -t newpage:local .
-docker run --rm --env-file .env -p 127.0.0.1:7860:7860 newpage:local
+# Edit .env: set GOOGLE_API_KEY.
+# Set GEMINI_MODEL=gemini-3.1-flash-lite to use the model tried in manual sessions.
+docker build --pull -t folio:local .
+docker run --rm --env-file .env -p 127.0.0.1:7860:7860 folio:local
 ```
 
-Open **http://localhost:7860** and start chatting. Use the paperclip in the message
-box to attach PDF/TXT files, with or without a question. Files are indexed when
-you send the message. Expand **Sources** to inspect the latest retrieved evidence.
-**New chat** clears the conversation, its documents, and its agent memory.
-Gemini receives extracted text and questions; indexing and chat incur API usage.
+Open **http://localhost:7860**. Start chatting or choose a suggestion, attach files
+with the paperclip, and send. New uploads extend the index. Files-only messages
+index documents without calling the chat model. **New chat** clears the session.
 
-## Design
+Never commit `.env`. Model calls and embeddings use your API quota and may incur
+charges. Model settings are configurable; `.env.example` currently defaults to
+`gemini-3.8-flash`, so set the override above for the model used during development.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    UI[Gradio] --> Engine[Session and application flow]
-    Engine --> Ingest[Extract and split files]
-    Ingest --> Index[Session vector store in RAM]
-    Engine --> Agent[Gemini ReAct agent]
-    Agent --> Search[Deterministic search tool]
+    UI[Gradio chat] --> Engine[Session flow]
+    Engine --> Ingest[Extract and split uploads]
+    Ingest --> Index[Vectors and passages in RAM]
+    Engine --> Agent[Gemini agent]
+    Agent --> Search[Document search tool]
     Search --> Index
     Search --> Agent
     Agent --> UI
 ```
 
-The UI uses Gradio's native `Chatbot` and `MultimodalTextbox` and calls
-functions in `core/engine.py`. `documents.py` owns ingestion and
-retrieval; `agent.py` owns prompts, model configuration, and the tool loop.
-No separate backend service, authentication, or database is required.
+The agent can search again or select particular files. The tool returns passages
+and metadata; Gemini writes the answer.
+`InMemoryVectorStore` holds passages and embeddings, while `InMemorySaver` holds
+agent checkpoints. **Refreshing or restarting loses the session.** There is no
+durable application history or vector database.
 
-Each browser session owns its documents, `InMemoryVectorStore`, and agent
-checkpoints (`InMemorySaver`). Refreshing starts a new session; restarting the
-application clears everything. Temporary uploads and session state expire.
+To read the code, start with [app.py](app.py) for the UI, then
+[core/engine.py](core/engine.py) for session operations.
+[core/documents.py](core/documents.py) handles extraction, chunking, and retrieval;
+[core/agent.py](core/agent.py) contains the prompt, clients, and agent tool.
 
-## Check the prototype
+## Choices and trade-offs
+
+| Choice | Why we used it |
+|---|---|
+| Gemini chat and `gemini-embedding-001` | One provider setup. Manual sessions used Flash Lite to start with a lower-cost model; alternatives were not benchmarked. |
+| LangChain agent with one search tool | Lets the model choose searches while keeping the tool surface small. Passing all extracted text directly was considered first. |
+| Recursive character splitting | A simple starting point: 1,200 characters, 180 overlap, and up to four passages per search. These values need quality evaluation. |
+| In-memory state | Avoids database setup for a local prototype; persistence and multi-instance operation are deferred. |
+| One Python application with functions | Keeps UI and core logically separate without extra services or abstraction layers. |
+
+PDF extraction uses pypdf and keeps page metadata. Chunks stay within each page.
+The short ROLE/GOAL/INSTRUCTIONS/STYLE prompt asks for Markdown answers, retrieved
+evidence, readable file/page citations, and acknowledgment of missing or conflicting
+information. Citations are requested through the prompt, not independently validated.
+Search results and conversation history share the model context; old messages are
+not summarized automatically.
+
+## Checks, observability, and limits
 
 ```bash
-docker build --pull --target development -t newpage:dev .
-docker run --rm --network none newpage:dev
-docker run --rm --network none newpage:dev ruff check .
-docker run --rm --network none newpage:dev ruff format --check .
+docker build --pull --target development -t folio:dev .
+docker run --rm --network none folio:dev
+docker run --rm --network none folio:dev ruff check .
+docker run --rm --network none folio:dev ruff format --check .
 ```
 
-Tests use synthetic documents and local model/embedding doubles. They exercise
-the real LangChain tool loop without paid calls or telemetry. Live Gemini answer
-quality still requires manual evaluation with an API key.
+Offline tests exercise the actual agent/tool loop, isolation, uploads, limits, and
+failures with synthetic files and model doubles. Manual Gemini use is not a
+repeatable answer-quality evaluation.
 
-## Choices and limits
+Logs contain correlation IDs, errors, and durations. LangSmith tracing is optional
+and off by default; set its destination and key before enabling it. Inputs/outputs
+are hidden by default. Capturing them can send document and conversation content
+to LangSmith.
 
-- Gemini `gemini-3.8-flash` for answers; `gemini-embedding-001` for text search.
-  Both are configurable in `.env`.
-- Character chunks of 1,200 with 180 overlap; top four passages per search.
-- Up to 10 files, 10 MB each, 200 PDF pages, 150,000 characters per file,
-  and 500 chunks per session. No OCR or image/table interpretation.
-- Up to three searches per turn and 20 turns per conversation. Operations are
-  queued one at a time. Failed model runs reset conversation memory, keeping files.
-- Logs contain operational metadata. LangSmith is optional and off by default;
-  inputs/outputs are hidden by default. Configure your own tracing destination.
-- Dependencies are constrained in `requirements.lock`; the Python 3.14 Debian
-  base is pinned by digest. Update them deliberately and rerun checks.
+The prototype has basic file validation and execution bounds, not rigorous guardrails:
 
-## Next steps
+- Up to 10 documents, 10 MB each, 200 PDF pages, and 150,000 characters per file;
+  at most 500 chunks per session. No OCR or image/table interpretation.
+- Up to three searches per turn, 20 turns per conversation, and three total SDK
+  attempts per chat-model request. Retries can increase waiting time.
+- Failed agent runs reset model conversation memory but preserve indexed documents.
+- No login, abuse prevention, or production access-control layer. Prompt instructions
+  about untrusted documents are not a complete prompt-injection defense.
 
-Before public GCP hosting: add authentication and backend access checks, store
-originals in Cloud Storage, and select durable conversation and vector storage.
-Cloud Run is a candidate, but RAM state cannot support multiple instances as-is.
-Add rate limits, retention policies, quality evaluation, deployment automation,
-and a fresh image audit before publishing.
+## How AI assisted development
 
-The initial image scan still reports high-severity Debian findings without fixes;
-this prototype is not approved for public deployment. See development notes.
+We started with [AGENTS.md](AGENTS.md): discuss decisions before coding, work in
+small increments, preserve existing work, and run relevant checks. The developer
+chose scope and approved changes; Codex assisted implementation and debugging.
+Using the application guided refinements.
 
-See [development notes](docs/development.md) for decisions, AI assistance,
-verification, and deferred work. [Interface screenshot](docs/screenshot.png).
+Standards include explicit functions, separated responsibilities, external secrets,
+offline tests, Ruff, a runtime dependency lock, and a non-root Docker image.
+CI, formal quality benchmarks, and comprehensive security controls are deferred.
+The [development notes](docs/development.md) explain the decisions in more detail.
+
+## With more time: quality and a GCP deployment
+
+These are next steps, not implemented services:
+
+1. **Quality:** evaluate factual questions, summaries, conflicting files, and missing
+   evidence before tuning retrieval. Consider reranking, OCR, structured answers,
+   and backend citation validation.
+2. **Identity and guardrails:** add login and backend ownership checks. Define abuse
+   cases and evaluate input screening with rules or a security-focused agent.
+   An extra agent adds latency and cost; backend access controls remain necessary.
+3. **Persistence:** consider Cloud Storage for original files and
+   [Firestore](https://docs.cloud.google.com/firestore/native/docs/langchain) for
+   conversation history and metadata. Select durable agent checkpoints and vector
+   storage; [Vertex AI Vector Search](https://cloud.google.com/vertex-ai/docs/vector-search/overview)
+   is one candidate, subject to volume, cost, and access-filter requirements.
+4. **Operations and scaling:** consider Cloud Run once state is externalized. Review
+   concurrency and upload processing for multiple instances; add Secret Manager,
+   Cloud Logging correlation, monitoring, retention/deletion rules, rate and cost
+   limits, and a deployment pipeline with rollback.
+
+An initial image audit found unresolved high-severity Debian findings. That result
+is historical; a production release needs a fresh audit and treatment of applicable
+findings before public exposure.

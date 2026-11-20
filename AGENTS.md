@@ -52,9 +52,14 @@ deployment are future increments. Keep validation and execution bounds modest.
 
 ## UI and interaction
 
-- Use native Chatbot and MultimodalTextbox for messages and attachments.
-  Index attachments on submission. Keep New chat as the only additional action;
-  it must clear both visible history and the backend's session resources.
+- Use a single responsive, light-themed chat workspace with native Sidebar,
+  ChatInterface, and MultimodalTextbox. Index newly attached PDF/TXT files on
+  message submission, including files-only messages. Do not add upload tabs.
+- Keep New chat in the sidebar. It must clear visible history, ChatInterface
+  history states, and the backend's session resources, then restore starter cards.
+- Starter cards draft editable suggestions and preserve pending attachments;
+  only submission calls the model. Keep retry, undo, message editing, and browser
+  history persistence disabled. Do not add a separate retrieved-passages panel.
 - Use a small, consistent set of visual styles and reusable UI patterns.
 - Make upload status, active document, loading, and failures easy to understand.
 - Prioritize readable answers, clear source references, and accessible controls.
@@ -90,6 +95,9 @@ deployment are future increments. Keep validation and execution bounds modest.
 - Keep live model evaluations explicit; do not incur paid calls in routine tests.
 - Evaluate prompt or model changes with a small representative question set.
 - Run relevant tests and lint for each increment.
+- Keep routine iterations focused: use the existing development environment and
+  affected checks. Do not rebuild images or run broad browser checks unless the
+  change requires them or the developer requests them.
 - Verify the complete suite and container startup before a release.
 - Keep dependencies minimal and reproducible; separate development tools
   from runtime dependencies.
