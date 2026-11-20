@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1160" viewBox="0 0 1800 1160" role="img" aria-labelledby="title description">
+<title id="title">Folio — Prototype architecture</title>
+<desc id="description">A local Docker application with Gradio and one LangChain ReAct-style agent. Uploaded PDF and TXT files are extracted, chunked, embedded through Gemini and stored in an InMemoryVectorStore. The agent queries that store through deterministic retrieval, uses Gemini Flash Lite to answer, and keeps checkpoints in InMemorySaver. State is isolated per browser session and disappears on refresh or restart. LangSmith tracing is optional.</desc>
+<defs>
+ <filter id="shadow" x="-10%" y="-15%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity=".08"/></filter>
+ <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0L8 4L0 8Z" fill="#475569"/></marker>
+ <marker id="green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0L8 4L0 8Z" fill="#32836b"/></marker>
+ <marker id="trace" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse"><path d="M0 0L8 4L0 8Z" fill="#8b6ab1"/></marker>
+</defs>
+<style>
+ text {font-family:Arial,Helvetica,sans-serif;fill:#172b43}
+ .small {font-size:18px;fill:#53657d}
+ .micro {font-size:16px;fill:#53657d}
+ .label {font-size:17px;font-weight:700;letter-spacing:1px;fill:#53657d}
+ .title {font-size:23px;font-weight:700}
+ .body {font-size:19px;fill:#43546b}
+ .wire {fill:none;stroke:#475569;stroke-width:2.2;stroke-linejoin:round;marker-end:url(#arrow)}
+ .data {fill:none;stroke:#32836b;stroke-width:2.2;stroke-linejoin:round;marker-end:url(#green)}
+</style>
+<rect width="1800" height="1160" fill="#ffffff"/>
+
+<text x="42" y="58" class="title" font-size="38">Folio</text>
+<text x="150" y="58" class="title" font-size="32">Prototype architecture</text>
+<text x="42" y="94" class="body" font-size="21">Agentic RAG • one agent • session-scoped memory • local Docker runtime</text>
+<rect x="32" y="132" width="1326" height="804" rx="24" fill="#f8fafc" stroke="#b6c3d2" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="58" y="171" class="label">LOCAL DOCKER · ONE PYTHON APPLICATION</text>
+<rect x="56" y="198" width="280" height="349" rx="20" fill="#f0f8f1" stroke="#b4d1b9" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="78" y="233" class="label">USER INTERFACE</text>
+<rect x="370" y="198" width="962" height="349" rx="20" fill="#eaf2ff" stroke="#b6cae8" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="394" y="233" class="label">APPLICATION &amp; ORCHESTRATION</text>
+<rect x="76" y="264" width="240" height="234" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="94" y="282" width="40" height="40" rx="10" fill="#e0f1e3" stroke="#e0f1e3" stroke-width="1.5"/>
+<text x="114" y="310" class="title" text-anchor="middle">↗</text>
+<text x="148" y="310" class="title">Gradio</text>
+<text x="98" y="347" class="body">ChatInterface</text>
+<text x="98" y="374" class="body">PDF / TXT attachments</text>
+<text x="98" y="401" class="body">Markdown responses</text>
+<text x="98" y="428" class="body">New chat / stop</text>
+<rect x="402" y="264" width="356" height="234" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="420" y="282" width="40" height="40" rx="10" fill="#e9f0fc" stroke="#e9f0fc" stroke-width="1.5"/>
+<text x="440" y="310" class="title" text-anchor="middle">↻</text>
+<text x="474" y="310" class="title">ReAct agent</text>
+<text x="424" y="347" class="body">LangChain create_agent</text>
+<text x="424" y="374" class="body">Decide → act → observe</text>
+<text x="424" y="401" class="body">Answer or search again</text>
+<text x="424" y="428" class="body">Up to 3 searches / turn</text>
+<rect x="858" y="264" width="450" height="234" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<rect x="876" y="282" width="40" height="40" rx="10" fill="#e9f0fc" stroke="#e9f0fc" stroke-width="1.5"/>
+<text x="896" y="310" class="title" text-anchor="middle">⌕</text>
+<text x="930" y="310" class="title">Deterministic RAG tool</text>
+<text x="880" y="347" class="body">search_uploaded_documents</text>
+<text x="880" y="374" class="body">Embed query → similarity search</text>
+<text x="880" y="401" class="body">Return top 4 passages + metadata</text>
+<text x="880" y="428" class="body">Optional document-ID filter</text>
+<path d="M316 348 H402" class="wire" marker-start="url(#arrow)"/>
+<text x="359" y="330" class="micro" text-anchor="middle">chat</text>
+<path d="M758 348 H858" class="wire" marker-start="url(#arrow)"/>
+<text x="808" y="324" class="micro" text-anchor="middle">tool call</text>
+<text x="808" y="382" class="micro" text-anchor="middle">evidence</text>
+<rect x="56" y="594" width="1276" height="300" rx="20" fill="#fff2ef" stroke="#e5c1ba" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="78" y="631" class="label">SESSION STATE · RAM · ISOLATED PER BROWSER SESSION</text>
+<rect x="76" y="666" width="316" height="148" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<text x="98" y="712" class="title">InMemorySaver</text>
+<text x="98" y="749" class="body">Conversation checkpoints</text>
+<text x="98" y="776" class="body">thread_id = session ID</text>
+<text x="98" y="803" class="body">No durable chat history</text>
+<rect x="436" y="666" width="322" height="148" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<text x="458" y="712" class="title">On upload → index</text>
+<text x="458" y="749" class="body">pypdf / UTF-8 TXT extraction</text>
+<text x="458" y="776" class="body">1,200 chars · 180 overlap</text>
+<text x="458" y="803" class="body">Embed new chunks only</text>
+<rect x="858" y="666" width="450" height="148" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<text x="880" y="712" class="title">InMemoryVectorStore</text>
+<text x="880" y="749" class="body">Passages + vectors + file/page data</text>
+<text x="880" y="776" class="body">New uploads extend the catalog</text>
+<text x="880" y="803" class="body">PDF chunks stay within each page</text>
+<path d="M580 498 V563 H44 V740 H76" class="wire" marker-start="url(#arrow)"/>
+<text x="280" y="583" class="micro">conversation memory</text>
+<path d="M1083 498 V666" class="wire" marker-start="url(#arrow)"/>
+<rect x="1110" y="554" width="186" height="32" rx="6" fill="#f8fafc" stroke="#f8fafc" stroke-width="1.5"/>
+<text x="1120" y="576" class="micro">retrieve passages</text>
+<path d="M758 739 H858" class="data"/>
+<text x="808" y="718" class="micro" text-anchor="middle">index</text>
+<text x="78" y="852" class="small">New chat / refresh / restart → fresh session.</text>
+<text x="78" y="880" class="small">No persistent database or login.</text>
+<rect x="1392" y="198" width="376" height="504" rx="20" fill="#f5f0fa" stroke="#cbb9dd" stroke-width="1.5" stroke-dasharray="6 5"/>
+<text x="1414" y="233" class="label">EXTERNAL API SERVICES</text>
+<rect x="1414" y="264" width="332" height="154" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<text x="1436" y="310" class="title">Gemini Developer API</text>
+<text x="1436" y="347" class="body">gemini-3.1-flash-lite</text>
+<text x="1436" y="374" class="body">Model decisions + final answer</text>
+<rect x="1414" y="482" width="332" height="154" rx="16" fill="#fff" stroke="#dce4ee" stroke-width="1.5" filter="url(#shadow)"/>
+<text x="1436" y="528" class="title">Embedding API</text>
+<text x="1436" y="565" class="body">gemini-embedding-001</text>
+<text x="1436" y="592" class="body">Document + query embeddings</text>
+<path d="M580 264 V248 H1374 V340 H1414" class="wire" marker-start="url(#arrow)"/>
+<text x="1018" y="183" class="micro">model requests / responses</text>
+<path d="M1308 391 H1374 V558 H1414" class="data"/>
+<text x="1318" y="438" class="micro">query</text>
+<path d="M597 814 V917 H1374 V600 H1414" class="data"/>
+<text x="1120" y="910" class="micro">document embeddings</text>
+<rect x="56" y="990" width="1712" height="110" rx="18" fill="#f5f0fa" stroke="#cbb9dd" stroke-width="1.5"/>
+<text x="80" y="1031" class="title">LangSmith · optional tracing</text>
+<text x="80" y="1067" class="body">Agent, model and tool runs • thread / turn correlation • content capture is configurable</text>
+<path d="M1083 936 V990" fill="none" stroke="#8b6ab1" stroke-width="2.2" stroke-dasharray="6 5" marker-end="url(#trace)"/>
+<text x="1110" y="971" class="micro">traces</text>
+<text x="1396" y="754" class="title" font-size="21">Agent autonomy</text>
+<text x="1396" y="786" class="small">Chooses when and where to search.</text>
+<text x="1396" y="829" class="title" font-size="21">Deterministic retrieval</text>
+<text x="1396" y="861" class="small">Returns evidence, not an LLM answer.</text>
+<text x="58" y="1134" class="micro">Current prototype • models shown match .env.example • external services are reached over HTTPS</text>
+</svg>
