@@ -5,6 +5,10 @@ A single ReAct-style agent decides when to search uploaded PDFs and text files.
 
 ![Folio interface](docs/screenshot.png)
 
+An example answer with document and page references:
+
+![Document question answering in Folio](docs/document-chat-example.png)
+
 ## Run locally
 
 Requires Docker and a [Gemini API key](https://aistudio.google.com/api-keys).
