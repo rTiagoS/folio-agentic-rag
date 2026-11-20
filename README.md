@@ -70,6 +70,13 @@ Each turn allows three searches; model requests allow three total attempts.
 Failed runs reset agent memory but keep indexed documents. No OCR, login, or
 rigorous guardrails.
 
+I used LangSmith to inspect model calls, document searches, errors, latency, and
+estimated token costs during manual testing.
+
+![LangSmith conversation trace with a document search and response](docs/langsmith-trace.png)
+
+[View the manual testing overview](docs/langsmith-overview.png).
+
 ## Development with AI
 
 I started by creating [AGENTS.md](AGENTS.md) to guide AI-assisted development:
